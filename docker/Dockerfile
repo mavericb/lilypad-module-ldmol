@@ -24,8 +24,7 @@ RUN wget https://github.com/conda-forge/miniforge/releases/latest/download/Mamba
 ENV PATH="/opt/conda/bin:${PATH}"
 
 # Initialize conda for shell interaction
-RUN conda init bash && \
-    echo "conda activate ldmol" >> ~/.bashrc
+RUN conda init bash
 
 # Clone the LDMol repository
 RUN git clone https://github.com/amelie-iska/ldmol.git
@@ -36,14 +35,19 @@ WORKDIR /app/ldmol
 # Create the Mamba environment
 RUN mamba env create -f requirements.yaml
 
-# Install gdown in the ldmol environment
-RUN mamba run -n ldmol pip install gdown
+# Activate the environment and install additional packages
+SHELL ["conda", "run", "-n", "ldmol", "/bin/bash", "-c"]
+
+RUN pip install gdown
 
 # Download pretrained models
-RUN mamba run -n ldmol gdown --folder https://drive.google.com/drive/folders/170znWA5u3nC7S1mzF7RPNP5faAn56Q45 && \
+RUN gdown --folder https://drive.google.com/drive/folders/170znWA5u3nC7S1mzF7RPNP5faAn56Q45 && \
     mv /app/ldmol/LDMol/Pretrain /app/ldmol/ && \
     mv /app/ldmol/LDMol/data /app/ldmol/ && \
     rm -rf /app/ldmol/LDMol
 
+# Set the default shell back to /bin/bash
+SHELL ["/bin/bash", "-c"]
+
 # Set the entry point
-ENTRYPOINT ["/bin/bash", "-c", "source ~/.bashrc && exec python inference_demo.py --num-samples 100 --ckpt ./Pretrain/checkpoint_ldmol.pt --prompt=\"$PROMPT\" --cfg-scale=5"]
+ENTRYPOINT ["conda", "run", "--no-capture-output", "-n", "ldmol", "python", "inference_demo.py", "--num-samples", "100", "--ckpt", "./Pretrain/checkpoint_ldmol.pt", "--prompt=$PROMPT", "--cfg-scale=5"]
