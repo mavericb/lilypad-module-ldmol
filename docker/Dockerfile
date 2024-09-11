@@ -4,10 +4,11 @@ FROM pytorch/pytorch:1.9.0-cuda11.1-cudnn8-runtime
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies and build tools
 RUN apt-get update && apt-get install -y \
     git \
     wget \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 # Install or update Mambaforge
