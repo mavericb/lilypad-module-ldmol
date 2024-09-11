@@ -10,12 +10,14 @@ RUN apt-get update && apt-get install -y \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Mamba
-RUN wget https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh \
-    && bash Mambaforge-Linux-x86_64.sh -b -p /opt/conda \
-    && rm Mambaforge-Linux-x86_64.sh
+# Check if Conda is installed, if not, install Mamba
+RUN if ! command -v conda &> /dev/null; then \
+        wget https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh \
+        && bash Mambaforge-Linux-x86_64.sh -b -p /opt/conda \
+        && rm Mambaforge-Linux-x86_64.sh; \
+    fi
 
-# Add Mamba to PATH
+# Add Conda to PATH if it's not already there
 ENV PATH="/opt/conda/bin:${PATH}"
 
 # Clone the LDMol repository
