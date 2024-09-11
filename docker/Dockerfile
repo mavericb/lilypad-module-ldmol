@@ -10,26 +10,16 @@ RUN apt-get update && apt-get install -y \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Check if Conda is installed, if not, install Mamba
-RUN if [ -d "/opt/conda" ]; then \
-        if ! command -v conda &> /dev/null; then \
-            echo "Removing incomplete Conda installation" && \
-            rm -rf /opt/conda; \
-        else \
-            echo "Conda already installed, skipping installation"; \
-            exit 0; \
-        fi; \
-    fi && \
-    if ! command -v conda &> /dev/null; then \
-        echo "Installing Mambaforge" && \
-        wget https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh && \
-        bash Mambaforge-Linux-x86_64.sh -b -p /opt/conda && \
-        rm Mambaforge-Linux-x86_64.sh && \
-        echo "Mambaforge installed successfully"; \
-    fi
+# Install Mambaforge
+RUN wget https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh && \
+    bash Mambaforge-Linux-x86_64.sh -b -p /opt/conda && \
+    rm Mambaforge-Linux-x86_64.sh
 
-# Add Conda to PATH if it's not already there
+# Add Conda to PATH
 ENV PATH="/opt/conda/bin:${PATH}"
+
+# Initialize conda for shell interaction
+RUN conda init bash
 
 # Clone the LDMol repository
 RUN git clone https://github.com/amelie-iska/ldmol.git
@@ -38,17 +28,17 @@ RUN git clone https://github.com/amelie-iska/ldmol.git
 WORKDIR /app/ldmol
 
 # Create and activate the Mamba environment
-RUN conda env create -f requirements.yaml && \
+RUN mamba env create -f requirements.yaml && \
     echo "conda activate ldmol" >> ~/.bashrc
 
 # Install gdown
-RUN pip install gdown
+RUN mamba run -n ldmol pip install gdown
 
 # Download pretrained models
-RUN gdown --folder https://drive.google.com/drive/folders/170znWA5u3nC7S1mzF7RPNP5faAn56Q45 && \
+RUN mamba run -n ldmol gdown --folder https://drive.google.com/drive/folders/170znWA5u3nC7S1mzF7RPNP5faAn56Q45 && \
     mv /app/ldmol/LDMol/Pretrain /app/ldmol/ && \
     mv /app/ldmol/LDMol/data /app/ldmol/ && \
     rm -rf /app/ldmol/LDMol
 
 # Set the entry point
-ENTRYPOINT ["/bin/bash", "-c", "conda activate ldmol && exec python inference_demo.py --num-samples 100 --ckpt ./Pretrain/checkpoint_ldmol.pt --prompt=\"$PROMPT\" --cfg-scale=5"]
+ENTRYPOINT ["/bin/bash", "-c", "source ~/.bashrc && conda activate ldmol && exec python inference_demo.py --num-samples 100 --ckpt ./Pretrain/checkpoint_ldmol.pt --prompt=\"$PROMPT\" --cfg-scale=5"]
