@@ -1,5 +1,5 @@
-# Use an official Conda image as the base image
-FROM continuumio/miniconda3
+# Use an official Mamba image as the base image
+FROM mambaorg/micromamba:1.5.3
 
 # Set the working directory in the container
 WORKDIR /app
@@ -8,19 +8,18 @@ WORKDIR /app
 COPY . /app
 
 # Install system dependencies
+USER root
 RUN apt-get update && apt-get install -y \
     git \
     wget \
     && rm -rf /var/lib/apt/lists/*
+USER micromamba
 
-# Install Mamba
-RUN conda install mamba -n base -c conda-forge
+# Create the Mamba environment
+RUN micromamba create -f requirements.yaml -n ldmol
 
-# Create the Conda environment
-RUN mamba env create -f requirements.yaml
-
-# Make RUN commands use the new environment
-SHELL ["conda", "run", "-n", "ldmol", "/bin/bash", "-c"]
+# Activate the environment
+ARG MAMBA_DOCKERFILE_ACTIVATE=1
 
 # Install gdown
 RUN pip install gdown
@@ -32,4 +31,4 @@ RUN mv /app/LDMol/data /app/data
 RUN rm -rf /app/LDMol
 
 # Set the default command to run when the container starts
-CMD ["conda", "run", "--no-capture-output", "-n", "ldmol", "torchrun", "--nnodes=1", "--nproc_per_node=2", "inference_demo.py", "--num-samples", "100", "--ckpt", "./Pretrain/checkpoint_ldmol.pt", "--prompt", "This molecule includes benzoyl group.", "--cfg-scale", "5"]
+CMD ["micromamba", "run", "-n", "ldmol", "torchrun", "--nnodes=1", "--nproc_per_node=2", "inference_demo.py", "--num-samples", "100", "--ckpt", "./Pretrain/checkpoint_ldmol.pt", "--prompt", "This molecule includes benzoyl group.", "--cfg-scale", "5"]
