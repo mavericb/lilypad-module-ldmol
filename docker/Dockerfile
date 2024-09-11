@@ -1,45 +1,35 @@
-# Use NVIDIA CUDA base image
-FROM nvidia/cuda:11.1.1-cudnn8-devel-ubuntu20.04
+# Use an official Conda image as the base image
+FROM continuumio/miniconda3
 
-# Set environment variables
-ENV DEBIAN_FRONTEND=noninteractive
-ENV PYTHONUNBUFFERED=1
-ENV PATH="/opt/conda/bin:${PATH}"
-
-# Set working directory
+# Set the working directory in the container
 WORKDIR /app
 
+# Copy the current directory contents into the container at /app
+COPY . /app
+
 # Install system dependencies
-RUN apt-get update -y && \
-    apt-get install -y curl wget git libgl1-mesa-glx libglib2.0-0 openssh-server && \
-    rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y \
+    git \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Mamba
-RUN wget -qO- https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh | bash -s -- -b -p /opt/conda && \
-    mamba init bash
+RUN conda install mamba -n base -c conda-forge
 
-# Clone the LDMol repository
-RUN git clone https://github.com/amelie-iska/ldmol.git /app/ldmol
+# Create the Conda environment
+RUN mamba env create -f requirements.yaml
 
-# Create Mamba environment and install dependencies
-WORKDIR /app/ldmol
-RUN mamba env create -f requirements.yaml && \
-    mamba clean -afy
+# Make RUN commands use the new environment
+SHELL ["conda", "run", "-n", "ldmol", "/bin/bash", "-c"]
 
-# Install gdown in the base environment
-RUN mamba install -y -c conda-forge gdown
+# Install gdown
+RUN pip install gdown
 
 # Download pretrained models
-RUN gdown --folder https://drive.google.com/drive/folders/170znWA5u3nC7S1mzF7RPNP5faAn56Q45 && \
-    mv /app/ldmol/LDMol/Pretrain /app/ldmol/ && \
-    mv /app/ldmol/LDMol/data /app/ldmol/ && \
-    rm -rf /app/ldmol/LDMol
+RUN gdown --folder https://drive.google.com/drive/folders/170znWA5u3nC7S1mzF7RPNP5faAn56Q45
+RUN mv /app/LDMol/Pretrain /app/Pretrain
+RUN mv /app/LDMol/data /app/data
+RUN rm -rf /app/LDMol
 
-# Copy start script
-COPY start.sh /app/start.sh
-
-# Make start.sh executable
-RUN chmod +x /app/start.sh
-
-# Set the entrypoint
-ENTRYPOINT ["/app/start.sh"]
+# Set the default command to run when the container starts
+CMD ["conda", "run", "--no-capture-output", "-n", "ldmol", "torchrun", "--nnodes=1", "--nproc_per_node=2", "inference_demo.py", "--num-samples", "100", "--ckpt", "./Pretrain/checkpoint_ldmol.pt", "--prompt", "This molecule includes benzoyl group.", "--cfg-scale", "5"]
