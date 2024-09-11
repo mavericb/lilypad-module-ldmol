@@ -1,34 +1,30 @@
-# Use an official Mamba image as the base image
-FROM mambaorg/micromamba:1.5.3
+# Usa un'immagine ufficiale Miniconda3 come immagine base
+FROM continuumio/miniconda3
 
-# Set the working directory in the container
+# Imposta la directory di lavoro nel container
 WORKDIR /app
 
-# Copy the current directory contents into the container at /app
-COPY . /app
+# Installa le dipendenze di sistema
+RUN apt-get update && apt-get install -y git wget && rm -rf /var/lib/apt/lists/*
 
-# Install system dependencies
-USER root
-RUN apt-get update && apt-get install -y \
-    git \
-    wget \
-    && rm -rf /var/lib/apt/lists/*
-USER micromamba
+# Clona il repository
+RUN git clone https://github.com/amelie-iska/ldmol.git .
 
-# Create the Mamba environment
-RUN micromamba create -f requirements.yaml -n ldmol
+# Crea l'ambiente conda
+RUN conda env create -f requirements.yaml
 
-# Activate the environment
-ARG MAMBA_DOCKERFILE_ACTIVATE=1
+# Installa gdown e scarica i modelli pre-addestrati
+RUN conda run -n ldmol pip install gdown && \
+    conda run -n ldmol gdown --folder https://drive.google.com/drive/folders/170znWA5u3nC7S7mzF7RPNP5faAn56Q45 && \
+    mkdir -p Pretrain data && \
+    mv LDMol/Pretrain/* Pretrain/ && \
+    mv LDMol/data/* data/ && \
+    rm -rf LDMol
 
-# Install gdown
-RUN pip install gdown
-
-# Download pretrained models
-RUN gdown --folder https://drive.google.com/drive/folders/170znWA5u3nC7S1mzF7RPNP5faAn56Q45
-RUN mv /app/LDMol/Pretrain /app/Pretrain
-RUN mv /app/LDMol/data /app/data
-RUN rm -rf /app/LDMol
-
-# Set the default command to run when the container starts
-CMD ["micromamba", "run", "-n", "ldmol", "torchrun", "--nnodes=1", "--nproc_per_node=2", "inference_demo.py", "--num-samples", "100", "--ckpt", "./Pretrain/checkpoint_ldmol.pt", "--prompt", "This molecule includes benzoyl group.", "--cfg-scale", "5"]
+# Imposta il comando per eseguire lo script Python nell'ambiente conda
+CMD ["conda", "run", "--no-capture-output", "-n", "ldmol", \
+     "torchrun", "--nnodes=1", "--nproc_per_node=2", "inference_demo.py", \
+     "--num-samples", "100", \
+     "--ckpt", "./Pretrain/checkpoint_ldmol.pt", \
+     "--prompt", "This molecule includes benzoyl group.", \
+     "--cfg-scale", "5"]
