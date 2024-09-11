@@ -1,44 +1,33 @@
-# Use an official PyTorch image as the base image
-FROM pytorch/pytorch:1.9.0-cuda11.1-cudnn8-runtime
+# Use NVIDIA CUDA base image
+FROM nvidia/cuda:11.1.1-cudnn8-devel-ubuntu20.04
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV PATH="/opt/conda/bin:${PATH}"
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies and build tools
-RUN apt-get update && apt-get install -y \
-    git \
-    wget \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+# Install system dependencies
+RUN apt-get update -y && \
+    apt-get install -y curl wget git libgl1-mesa-glx libglib2.0-0 openssh-server && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install or update Mambaforge
-RUN wget https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh && \
-    if [ -d "/opt/conda" ]; then \
-        bash Mambaforge-Linux-x86_64.sh -b -u -p /opt/conda; \
-    else \
-        bash Mambaforge-Linux-x86_64.sh -b -p /opt/conda; \
-    fi && \
-    rm Mambaforge-Linux-x86_64.sh
-
-# Add Conda to PATH
-ENV PATH="/opt/conda/bin:${PATH}"
-
-# Initialize conda for shell interaction
-RUN conda init bash
+# Install Mamba
+RUN wget -qO- https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh | bash -s -- -b -p /opt/conda && \
+    mamba init bash
 
 # Clone the LDMol repository
-RUN git clone https://github.com/amelie-iska/ldmol.git
+RUN git clone https://github.com/amelie-iska/ldmol.git /app/ldmol
 
-# Change to the ldmol directory
+# Create Mamba environment and install dependencies
 WORKDIR /app/ldmol
+RUN mamba env create -f requirements.yaml && \
+    mamba clean -afy
 
-# Create the Mamba environment
-RUN mamba env create -f requirements.yaml
-
-# Activate the environment and install additional packages
-SHELL ["conda", "run", "-n", "ldmol", "/bin/bash", "-c"]
-
-RUN pip install gdown
+# Install gdown in the base environment
+RUN mamba install -y -c conda-forge gdown
 
 # Download pretrained models
 RUN gdown --folder https://drive.google.com/drive/folders/170znWA5u3nC7S1mzF7RPNP5faAn56Q45 && \
@@ -46,8 +35,11 @@ RUN gdown --folder https://drive.google.com/drive/folders/170znWA5u3nC7S1mzF7RPN
     mv /app/ldmol/LDMol/data /app/ldmol/ && \
     rm -rf /app/ldmol/LDMol
 
-# Set the default shell back to /bin/bash
-SHELL ["/bin/bash", "-c"]
+# Copy start script
+COPY start.sh /app/start.sh
 
-# Set the entry point
-ENTRYPOINT ["conda", "run", "--no-capture-output", "-n", "ldmol", "python", "inference_demo.py", "--num-samples", "100", "--ckpt", "./Pretrain/checkpoint_ldmol.pt", "--prompt=$PROMPT", "--cfg-scale=5"]
+# Make start.sh executable
+RUN chmod +x /app/start.sh
+
+# Set the entrypoint
+ENTRYPOINT ["/app/start.sh"]
