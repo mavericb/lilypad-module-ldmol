@@ -10,9 +10,13 @@ RUN apt-get update && apt-get install -y \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Mambaforge
+# Install or update Mambaforge
 RUN wget https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh && \
-    bash Mambaforge-Linux-x86_64.sh -b -p /opt/conda && \
+    if [ -d "/opt/conda" ]; then \
+        bash Mambaforge-Linux-x86_64.sh -b -u -p /opt/conda; \
+    else \
+        bash Mambaforge-Linux-x86_64.sh -b -p /opt/conda; \
+    fi && \
     rm Mambaforge-Linux-x86_64.sh
 
 # Add Conda to PATH
