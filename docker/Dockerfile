@@ -11,13 +11,21 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Check if Conda is installed, if not, install Mamba
-RUN if ! command -v conda &> /dev/null; then \
+RUN if [ -d "/opt/conda" ]; then \
+        if ! command -v conda &> /dev/null; then \
+            echo "Removing incomplete Conda installation" && \
+            rm -rf /opt/conda; \
+        else \
+            echo "Conda already installed, skipping installation"; \
+            exit 0; \
+        fi; \
+    fi && \
+    if ! command -v conda &> /dev/null; then \
+        echo "Installing Mambaforge" && \
         wget https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh && \
         bash Mambaforge-Linux-x86_64.sh -b -p /opt/conda && \
-        rm Mambaforge-Linux-x86_64.sh; \
-    elif [ ! -d "/opt/conda" ]; then \
-        mkdir -p /opt/conda && \
-        ln -s $(dirname $(which conda))/../ /opt/conda; \
+        rm Mambaforge-Linux-x86_64.sh && \
+        echo "Mambaforge installed successfully"; \
     fi
 
 # Add Conda to PATH if it's not already there
